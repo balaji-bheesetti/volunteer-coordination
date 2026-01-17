@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}{{ event.title }} - Volunteer Coordination Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <a href="{{ url_for('list_events') }}" class="btn btn-outline-secondary mb-3">← Back to Events</a>
+
+    <div class="event-detail">
+        <div class="event-detail-header">
+            <h1>{{ event.title }}</h1>
+            <span class="event-status {% if event.status == 'Full' %}status-full{% else %}status-open{% endif %}">
+                {{ event.status }}
+            </span>
+        </div>
+
+        <div class="event-detail-content">
+            <div class="event-details-grid">
+                <div class="detail-section">
+                    <h3>📋 Event Details</h3>
+                    <p><strong>Description:</strong></p>
+                    <p>{{ event.description }}</p>
+                </div>
+
+                <div class="detail-section">
+                    <h3>📅 When & Where</h3>
+                    <p><strong>Date:</strong> {{ event.date.strftime('%A, %B %d, %Y') }}</p>
+                    <p><strong>Time:</strong> {{ event.start_time.strftime('%I:%M %p') }} - {{ event.end_time.strftime('%I:%M %p') }}</p>
+                    <p><strong>Location:</strong> {{ event.location_text }}</p>
+                </div>
+
+                {% if event.google_maps_link %}
+                <div class="detail-section">
+                    <h3>🗺️ Event Location Map</h3>
+                    <div id="eventMap" style="height: 400px; border-radius: 8px; margin-bottom: 10px;"></div>
+                    <p><a href="{{ event.google_maps_link }}" target="_blank" class="btn btn-sm btn-outline">View in Google Maps</a></p>
+                </div>
+                {% endif %}
+
+                <div class="detail-section">
+                    <h3>👥 Volunteer Information</h3>
+                    <p><strong>Volunteers Needed:</strong> {{ event.required_volunteers }}</p>
+                    <p><strong>Currently Registered:</strong> {{ event.registered_volunteers }}</p>
+                    <p><strong>Spots Available:</strong> {{ event.required_volunteers - event.registered_volunteers }}</p>
+                    
+                    <div class="progress-bar mt-3">
+                        <div class="progress-fill" style="width: {{ (event.registered_volunteers / event.required_volunteers * 100)|int }}%"></div>
+                    </div>
+                    <p class="text-center mt-2">
+                        {{ event.registered_volunteers }}/{{ event.required_volunteers }} volunteers registered
+                    </p>
+                </div>
+
+                <div class="detail-section">
+                    <h3>🏢 Organized By</h3>
+                    <p><strong>Organization:</strong> {{ organization.organization_name }}</p>
+                    <p><strong>About:</strong> {{ organization.description }}</p>
+                    <p><strong>Contact:</strong> {{ organization.email }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Registration Section -->
+        <div class="event-actions mt-5">
+            {% if current_user and current_user.role == 'volunteer' %}
+                {% if is_registered %}
+                    <div class="alert alert-success">
+                        ✓ You are registered for this event
+                    </div>
+                    <form method="POST" action="{{ url_for('unregister_event', event_id=event.id) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-outline-danger">Unregister from Event</button>
+                    </form>
+                {% elif event.status == 'Full' %}
+                    <div class="alert alert-warning">
+                        This event is now full. No more registrations are being accepted.
+                    </div>
+                {% else %}
+                    <form method="POST" action="{{ url_for('register_event', event_id=event.id) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-primary btn-lg">Register for This Event</button>
+                    </form>
+                {% endif %}
+            {% elif current_user and current_user.role == 'organization' %}
+                {% if current_user.id == organization.id %}
+                    <p class="text-muted">This is your event</p>
+                    <div class="action-buttons">
+                        <a href="{{ url_for('edit_event', event_id=event.id) }}" class="btn btn-secondary">Edit Event</a>
+                        <form method="POST" action="{{ url_for('delete_event', event_id=event.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this event?');">
+                            <button type="submit" class="btn btn-danger">Delete Event</button>
+                        </form>
+                    </div>
+                {% else %}
+                    <p class="text-muted">Login as a volunteer to register for this event</p>
+                {% endif %}
+            {% else %}
+                <a href="{{ url_for('signup', type='volunteer') }}" class="btn btn-primary btn-lg">Sign Up as Volunteer to Register</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Include Leaflet library for maps -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<script>
+// Initialize event location map if Google Maps link exists
+{% if event.google_maps_link %}
+document.addEventListener('DOMContentLoaded', function() {
+    initializeEventMap();
+});
+
+function initializeEventMap() {
+    const mapsLink = "{{ event.google_maps_link }}";
+    let lat = null;
+    let lng = null;
+    let locationName = "{{ event.location_text }}";
+    
+    // Extract coordinates from Google Maps link
+    // Handles formats like: 
+    // https://maps.google.com/maps?q=lat,lng
+    // https://www.google.com/maps/place/.../@lat,lng,...
+    // https://maps.google.com/?q=address
+    
+    try {
+        // Try to extract from @lat,lng format
+        const coordMatch = mapsLink.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (coordMatch) {
+            lat = parseFloat(coordMatch[1]);
+            lng = parseFloat(coordMatch[2]);
+        } else {
+            // Try to extract from ?q=lat,lng format
+            const qMatch = mapsLink.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+            if (qMatch) {
+                lat = parseFloat(qMatch[1]);
+                lng = parseFloat(qMatch[2]);
+            } else {
+                // If we can't extract coordinates, geocode the location text
+                geocodeLocation(locationName);
+                return;
+            }
+        }
+        
+        // Create map with extracted coordinates
+        createEventMap(lat, lng, locationName);
+    } catch (error) {
+        console.error('Error parsing maps link:', error);
+        // Fall back to geocoding location text
+        geocodeLocation(locationName);
+    }
+}
+
+function geocodeLocation(location) {
+    // Use Nominatim to find coordinates for the location text
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.length > 0) {
+                const result = data[0];
+                const lat = parseFloat(result.lat);
+                const lng = parseFloat(result.lon);
+                createEventMap(lat, lng, location);
+            } else {
+                // If geocoding fails, show default map centered on the location
+                createEventMap(20, 0, location);
+            }
+        })
+        .catch(error => {
+            console.error('Error geocoding location:', error);
+            createEventMap(20, 0, location);
+        });
+}
+
+function createEventMap(lat, lng, locationName) {
+    const map = L.map('eventMap').setView([lat, lng], 15);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+    }).addTo(map);
+    
+    // Add marker with location name
+    const marker = L.marker([lat, lng]).addTo(map);
+    marker.bindPopup(`<strong>${locationName}</strong>`).openPopup();
+    
+    // Add circle to highlight the area
+    L.circle([lat, lng], {
+        color: '#3498db',
+        fillColor: '#3498db',
+        fillOpacity: 0.1,
+        radius: 500 // 500 meters
+    }).addTo(map);
+}
+{% endif %}
+</script>
+
+<style>
+#eventMap {
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.leaflet-popup-content-wrapper {
+    border-radius: 4px;
+}
+</style>
+{% endblock %}

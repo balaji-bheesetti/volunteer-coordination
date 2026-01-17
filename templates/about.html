@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}About - Volunteer Coordination Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1>About the Volunteer Coordination Platform</h1>
+    
+    <section class="mt-4">
+        <h2>Our Mission</h2>
+        <p>To empower communities by creating an efficient, secure, and user-friendly platform that connects organizations 
+        with passionate volunteers, enabling meaningful volunteer experiences and community impact.</p>
+    </section>
+
+    <section class="mt-4">
+        <h2>Features</h2>
+        <ul>
+            <li><strong>Role-Based Access:</strong> Separate dashboards and features for organizations and volunteers</li>
+            <li><strong>JWT Authentication:</strong> Secure login with tokens and HTTP-only cookies</li>
+            <li><strong>Event Management:</strong> Create, edit, and manage volunteer events with full details</li>
+            <li><strong>Smart Registration:</strong> Prevent duplicate registrations and time conflicts</li>
+            <li><strong>Real-time Status:</strong> Automatic event status updates (Open/Full)</li>
+            <li><strong>Responsive Design:</strong> Works on desktop, tablet, and mobile devices</li>
+            <li><strong>Data Validation:</strong> Comprehensive input validation for security</li>
+        </ul>
+    </section>
+
+    <section class="mt-4">
+        <h2>Technology Stack</h2>
+        <p><strong>Backend:</strong> Python Flask with Flask-SQLAlchemy ORM</p>
+        <p><strong>Frontend:</strong> HTML5, CSS3, Vanilla JavaScript with Jinja2 templating</p>
+        <p><strong>Database:</strong> MySQL</p>
+        <p><strong>Authentication:</strong> JWT with Flask-JWT-Extended</p>
+        <p><strong>Security:</strong> Werkzeug password hashing</p>
+    </section>
+
+    <section class="mt-4">
+        <h2>How It Works</h2>
+        <h3>For Volunteers:</h3>
+        <ol>
+            <li>Sign up with your name, email, phone, and password</li>
+            <li>Browse all available volunteer events</li>
+            <li>Register for events that interest you</li>
+            <li>View all your registrations in one place</li>
+            <li>Unregister from events if plans change</li>
+        </ol>
+        
+        <h3>For Organizations:</h3>
+        <ol>
+            <li>Register your organization with details and description</li>
+            <li>Create new volunteer events with time, location, and volunteer requirements</li>
+            <li>Track registrations in real-time</li>
+            <li>Edit or delete events as needed</li>
+            <li>View your event dashboard with all key metrics</li>
+        </ol>
+    </section>
+
+    <section class="mt-4">
+        <h2>Sample Credentials</h2>
+        <p><strong>Organization Account:</strong></p>
+        <ul>
+            <li>Email: organization@example.com</li>
+            <li>Password: Org@123</li>
+        </ul>
+        
+        <p><strong>Volunteer Accounts:</strong></p>
+        <ul>
+            <li>Email: volunteer1@example.com / Password: Volunteer@123</li>
+            <li>Email: volunteer2@example.com / Password: Volunteer@123</li>
+        </ul>
+    </section>
+
+    <section class="mt-4 mb-5">
+        <h2>Contact & Support</h2>
+        <p>For questions, feedback, or support, please contact us at support@volunteerplatform.local</p>
+    </section>
+</div>
+{% endblock %}

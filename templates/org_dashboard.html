@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Organization Dashboard - Volunteer Coordination Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="page-header">
+        <h1>Organization Dashboard</h1>
+        <p class="subtitle">Welcome, {{ current_user.organization_name }}</p>
+    </div>
+
+    <div class="dashboard-actions mb-4">
+        <a href="{{ url_for('create_event') }}" class="btn btn-primary btn-lg">
+            ➕ Create New Event
+        </a>
+    </div>
+
+    <div class="dashboard-stats">
+        <div class="stat-card">
+            <h3>{{ events|length }}</h3>
+            <p>Total Events</p>
+        </div>
+        <div class="stat-card">
+            <h3>{{ events|selectattr('status', 'equalto', 'Open')|list|length }}</h3>
+            <p>Open Events</p>
+        </div>
+        <div class="stat-card">
+            <h3>{{ events|map(attribute='registered_volunteers')|sum }}</h3>
+            <p>Total Registrations</p>
+        </div>
+    </div>
+
+    {% if events %}
+        <h2 class="mt-5">Your Events</h2>
+        <div class="events-table-responsive">
+            <table class="events-table">
+                <thead>
+                    <tr>
+                        <th>Event Title</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Volunteers</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events %}
+                        <tr>
+                            <td><strong>{{ event.title }}</strong></td>
+                            <td>{{ event.date.strftime('%b %d, %Y') }}</td>
+                            <td>{{ event.start_time.strftime('%I:%M %p') }} - {{ event.end_time.strftime('%I:%M %p') }}</td>
+                            <td>
+                                <span class="badge">{{ event.registered_volunteers }}/{{ event.required_volunteers }}</span>
+                            </td>
+                            <td>
+                                <span class="event-status {% if event.status == 'Full' %}status-full{% else %}status-open{% endif %}">
+                                    {{ event.status }}
+                                </span>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn btn-sm btn-outline">View</a>
+                                <a href="{{ url_for('edit_event', event_id=event.id) }}" class="btn btn-sm btn-secondary">Edit</a>
+                                <form method="POST" action="{{ url_for('delete_event', event_id=event.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure?');">
+                                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="empty-state mt-5">
+            <h3>No events yet</h3>
+            <p>Start by creating your first volunteer event</p>
+            <a href="{{ url_for('create_event') }}" class="btn btn-primary">Create Event</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

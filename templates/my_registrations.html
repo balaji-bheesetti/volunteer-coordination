@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}My Registrations - Volunteer Coordination Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="page-header">
+        <h1>My Event Registrations</h1>
+        <p class="subtitle">View and manage your volunteer registrations</p>
+    </div>
+
+    <div class="dashboard-actions mb-4">
+        <a href="{{ url_for('volunteer_dashboard') }}" class="btn btn-primary">← Back to Dashboard</a>
+        <a href="{{ url_for('list_events') }}" class="btn btn-secondary">Browse More Events</a>
+    </div>
+
+    {% if events %}
+        <div class="registrations-grid">
+            {% for item in events %}
+                {% set event = item.event %}
+                {% set organization = item.organization %}
+                
+                <div class="registration-card">
+                    <div class="card-header">
+                        <h3>{{ event.title }}</h3>
+                        <span class="event-status {% if event.status == 'Full' %}status-full{% else %}status-open{% endif %}">
+                            {{ event.status }}
+                        </span>
+                    </div>
+
+                    <div class="card-body">
+                        <p>{{ event.description[:150] }}...</p>
+
+                        <div class="event-info">
+                            <div class="info-item">
+                                <strong>📅 Date:</strong> {{ event.date.strftime('%A, %B %d, %Y') }}
+                            </div>
+                            <div class="info-item">
+                                <strong>⏰ Time:</strong> {{ event.start_time.strftime('%I:%M %p') }} - {{ event.end_time.strftime('%I:%M %p') }}
+                            </div>
+                            <div class="info-item">
+                                <strong>📍 Location:</strong> {{ event.location_text }}
+                            </div>
+                            <div class="info-item">
+                                <strong>🏢 Organization:</strong> {{ organization.organization_name }}
+                            </div>
+                            <div class="info-item">
+                                <strong>✓ Registered:</strong> {{ item.registration.registered_at.strftime('%b %d, %Y at %I:%M %p') }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-footer">
+                        <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn btn-primary btn-sm">
+                            View Event
+                        </a>
+                        <form method="POST" action="{{ url_for('unregister_event', event_id=event.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to unregister?');">
+                            <button type="submit" class="btn btn-danger btn-sm">Unregister</button>
+                        </form>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state mt-5">
+            <h3>No registrations yet</h3>
+            <p>You haven't registered for any events yet. Browse available events and join today!</p>
+            <a href="{{ url_for('volunteer_dashboard') }}" class="btn btn-primary">View Available Events</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

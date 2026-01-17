@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Events - Volunteer Coordination Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="page-header">
+        <h1>Volunteer Events</h1>
+        <p class="subtitle">Find and register for volunteer opportunities in your community</p>
+    </div>
+
+    {% if events %}
+        <div class="events-grid">
+            {% for event in events %}
+                <div class="event-card">
+                    <div class="event-header">
+                        <h3>{{ event.title }}</h3>
+                        <span class="event-status {% if event.status == 'Full' %}status-full{% else %}status-open{% endif %}">
+                            {{ event.status }}
+                        </span>
+                    </div>
+
+                    <div class="event-body">
+                        <p class="event-description">{{ event.description[:100] }}...</p>
+                        
+                        <div class="event-info">
+                            <div class="info-item">
+                                <strong>📅 Date:</strong> {{ event.date.strftime('%B %d, %Y') }}
+                            </div>
+                            <div class="info-item">
+                                <strong>⏰ Time:</strong> {{ event.start_time.strftime('%I:%M %p') }} - {{ event.end_time.strftime('%I:%M %p') }}
+                            </div>
+                            <div class="info-item">
+                                <strong>📍 Location:</strong> {{ event.location_text }}
+                            </div>
+                            <div class="info-item">
+                                <strong>👥 Volunteers:</strong> {{ event.registered_volunteers }} / {{ event.required_volunteers }}
+                            </div>
+                        </div>
+
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {{ (event.registered_volunteers / event.required_volunteers * 100)|int }}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="event-footer">
+                        <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn btn-primary btn-sm">
+                            View Details
+                        </a>
+                        {% if event.google_maps_link %}
+                            <button type="button" class="btn btn-outline btn-sm" onclick="openEventMap('{{ event.google_maps_link }}', '{{ event.location_text }}')" title="Open map">
+                                🗺️ Map
+                            </button>
+                        {% endif %}
+                        
+                        {% if current_user and current_user.role == 'volunteer' %}
+                            {% if event.id in volunteer_registrations %}
+                                <span class="badge badge-success">✓ Registered</span>
+                            {% elif event.status == 'Full' %}
+                                <span class="badge badge-secondary">Event Full</span>
+                            {% else %}
+                                <button type="button" class="btn btn-success btn-sm" onclick="registerEvent({{ event.id }})">
+                                    Register
+                                </button>
+                            {% endif %}
+                        {% elif not current_user %}
+                            <small><a href="{{ url_for('login') }}">Login to register</a></small>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <p>No events available at the moment.</p>
+            {% if current_user and current_user.role == 'organization' %}
+                <a href="{{ url_for('create_event') }}" class="btn btn-primary">Create Your First Event</a>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+<!-- Registration Modal -->
+<div id="registrationModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Register for Event</h2>
+        <p id="modalMessage"></p>
+        <form method="POST" id="registrationForm">
+            <button type="submit" class="btn btn-primary">Confirm Registration</button>
+            <button type="button" class="btn btn-outline" onclick="closeRegistrationModal()">Cancel</button>
+        </form>
+    </div>
+</div>
+
+<script>
+function registerEvent(eventId) {
+    if (!{{ 'true' if current_user else 'false' }}) {
+        window.location.href = "{{ url_for('login') }}";
+        return;
+    }
+
+    const form = document.getElementById('registrationForm');
+    form.action = `/event/${eventId}/register`;
+    document.getElementById('modalMessage').textContent = 'Are you sure you want to register for this event?';
+    document.getElementById('registrationModal').style.display = 'block';
+}
+
+function closeRegistrationModal() {
+    document.getElementById('registrationModal').style.display = 'none';
+}
+
+document.querySelector('.close').onclick = closeRegistrationModal;
+window.onclick = function(event) {
+    const modal = document.getElementById('registrationModal');
+    if (event.target === modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Function to open Google Maps for an event
+function openEventMap(mapsLink, locationName) {
+    if (!mapsLink) {
+        alert('Map not available for this event');
+        return;
+    }
+    
+    // Extract coordinates from the maps link
+    let lat = null;
+    let lng = null;
+    
+    try {
+        const coordMatch = mapsLink.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (coordMatch) {
+            lat = parseFloat(coordMatch[1]);
+            lng = parseFloat(coordMatch[2]);
+        }
+    } catch (e) {
+        console.error('Error parsing coordinates:', e);
+    }
+    
+    if (lat && lng) {
+        // Try to open Google Maps app on mobile devices
+        const mapsAppUrl = `geo:${lat},${lng}?q=${encodeURIComponent(locationName)}`;
+        const mapsWebUrl = `https://www.google.com/maps/search/${encodeURIComponent(locationName)}/@${lat},${lng},17z`;
+        
+        // Attempt to open app
+        window.location.href = mapsAppUrl;
+        
+        // If app doesn't open, fall back to web version after 1 second
+        setTimeout(function() {
+            window.open(mapsWebUrl, '_blank');
+        }, 1000);
+    } else {
+        // If we can't extract coordinates, just open the maps link
+        window.open(mapsLink, '_blank');
+    }
+}
+</script>
+{% endblock %}

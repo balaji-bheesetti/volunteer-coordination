@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Volunteer Coordination Platform{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="container nav-container">
+            <div class="nav-brand">
+                <a href="{{ url_for('index') }}">🤝 Volunteer Platform</a>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="{{ url_for('list_events') }}" class="{% if request.endpoint == 'list_events' %}active{% endif %}">Events</a></li>
+                
+                {% if current_user %}
+                    {% if current_user.role == 'organization' %}
+                        <li><a href="{{ url_for('org_dashboard') }}" class="{% if request.endpoint == 'org_dashboard' %}active{% endif %}">My Dashboard</a></li>
+                        <li><a href="{{ url_for('create_event') }}" class="{% if request.endpoint == 'create_event' %}active{% endif %}">Create Event</a></li>
+                        <li><a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">Profile</a></li>
+                    {% else %}
+                        <li><a href="{{ url_for('volunteer_dashboard') }}" class="{% if request.endpoint == 'volunteer_dashboard' %}active{% endif %}">My Dashboard</a></li>
+                        <li><a href="{{ url_for('my_registrations') }}" class="{% if request.endpoint == 'my_registrations' %}active{% endif %}">My Registrations</a></li>
+                        <li><a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">Profile</a></li>
+                    {% endif %}
+                    <li><a href="{{ url_for('logout') }}" class="nav-logout">Logout</a></li>
+                {% else %}
+                    <li><a href="{{ url_for('login') }}" class="{% if request.endpoint == 'login' %}active{% endif %}">Login</a></li>
+                    <li><a href="{{ url_for('signup', type='volunteer') }}" class="nav-signup {% if request.endpoint == 'signup' %}active{% endif %}">Sign Up</a></li>
+                {% endif %}
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="container mt-3">
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                        <button type="button" class="alert-close" onclick="this.parentElement.style.display='none';">&times;</button>
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Volunteer Coordination Platform. All rights reserved.</p>
+            <p><a href="{{ url_for('about') }}">About</a> | <a href="#">Contact</a> | <a href="#">Privacy</a></p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

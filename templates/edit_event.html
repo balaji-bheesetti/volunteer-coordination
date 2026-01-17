@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Event - Volunteer Coordination Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="form-container">
+        <h1>Edit Event</h1>
+        <p class="subtitle">Update the details for your event</p>
+
+        <form method="POST" class="form-group">
+            <div class="form-field">
+                <label for="title">Event Title</label>
+                <input type="text" id="title" name="title" required value="{{ event.title }}">
+            </div>
+
+            <div class="form-field">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" required rows="5">{{ event.description }}</textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="date">Date</label>
+                    <input type="date" id="date" name="date" required value="{{ event.date }}">
+                </div>
+
+                <div class="form-field">
+                    <label for="start_time">Start Time (12-hour)</label>
+                    <input type="text" id="start_time" name="start_time" placeholder="12:00 AM" required>
+                </div>
+
+                <div class="form-field">
+                    <label for="end_time">End Time (12-hour)</label>
+                    <input type="text" id="end_time" name="end_time" placeholder="01:00 PM" required>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="location_text">Location</label>
+                <input type="text" id="location_text" name="location_text" required value="{{ event.location_text }}">
+            </div>
+
+            <div class="form-field">
+                <label for="google_maps_link">Google Maps Link (Optional)
+                    <button type="button" class="location-icon-btn" id="openMapBtn" title="Pick location from map">
+                        📍
+                    </button>
+                </label>
+                <input type="url" id="google_maps_link" name="google_maps_link" value="{{ event.google_maps_link or '' }}">
+                <small class="form-help">Click the location icon to select location on map</small>
+            </div>
+
+            <div class="form-field">
+                <label for="required_volunteers">Number of Volunteers Needed</label>
+                <input type="number" id="required_volunteers" name="required_volunteers" required min="1" value="{{ event.required_volunteers }}">
+            </div>
+
+            <div class="info-box">
+                <p><strong>Current Status:</strong> {{ event.registered_volunteers }}/{{ event.required_volunteers }} volunteers registered</p>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <a href="{{ url_for('org_dashboard') }}" class="btn btn-outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Location Picker Modal -->
+    <div id="mapModal" class="modal" style="display:none;">
+        <div class="modal-content map-modal-content">
+            <div class="modal-header">
+                <h2>Select Event Location</h2>
+                <button type="button" class="modal-close" id="closeMapBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="map" style="height: 500px; border-radius: 8px;"></div>
+                <div class="location-info mt-3">
+                    <p><strong>Latitude:</strong> <span id="mapLat">-</span></p>
+                    <p><strong>Longitude:</strong> <span id="mapLng">-</span></p>
+                    <p><strong>Address:</strong> <span id="mapAddress">Click on map to select location</span></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancelMapBtn">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmLocationBtn" disabled>Use This Location</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Include Leaflet library for maps -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<script>
+// Location picker functionality
+let map = null;
+let selectedMarker = null;
+let selectedLocation = { lat: null, lng: null, address: null };
+
+document.getElementById('openMapBtn').addEventListener('click', function(e) {
+    e.preventDefault();
+    document.getElementById('mapModal').style.display = 'flex';
+    
+    // Initialize map if not already done
+    if (!map) {
+        setTimeout(initializeMap, 100);
+    }
+});
+
+document.getElementById('closeMapBtn').addEventListener('click', closeMapModal);
+document.getElementById('cancelMapBtn').addEventListener('click', closeMapModal);
+
+document.getElementById('confirmLocationBtn').addEventListener('click', function() {
+    if (selectedLocation.lat && selectedLocation.lng) {
+        // Generate Google Maps link from coordinates
+        const mapsLink = `https://www.google.com/maps/place/@${selectedLocation.lat},${selectedLocation.lng},17z`;
+        document.getElementById('google_maps_link').value = mapsLink;
+        closeMapModal();
+    }
+});
+
+function closeMapModal() {
+    document.getElementById('mapModal').style.display = 'none';
+}
+
+function initializeMap() {
+    const mapContainer = document.getElementById('map');
+    
+    // Get user's location or default to India
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            createMap(lat, lng);
+        }, function() {
+            // Default to India center if geolocation fails
+            createMap(20.5937, 78.9629);
+        });
+    } else {
+        // Default to India center if geolocation not supported
+        createMap(20.5937, 78.9629);
+    }
+}
+
+function createMap(lat, lng) {
+    if (map) return; // Already initialized
+    
+    map = L.map('map').setView([lat, lng], 13);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+    }).addTo(map);
+    
+    // Add initial marker at user location
+    selectedMarker = L.marker([lat, lng]).addTo(map);
+    selectedLocation.lat = lat;
+    selectedLocation.lng = lng;
+    
+    // Fetch address for initial location
+    fetchAddress(lat, lng);
+    
+    // Handle map clicks to place marker
+    map.on('click', function(e) {
+        const clickLat = e.latlng.lat;
+        const clickLng = e.latlng.lng;
+        
+        // Remove old marker
+        if (selectedMarker) {
+            map.removeLayer(selectedMarker);
+        }
+        
+        // Add new marker
+        selectedMarker = L.marker([clickLat, clickLng]).addTo(map);
+        selectedLocation.lat = clickLat;
+        selectedLocation.lng = clickLng;
+        
+        // Fetch address
+        fetchAddress(clickLat, clickLng);
+    });
+}
+
+function fetchAddress(lat, lng) {
+    // Update coordinates display
+    document.getElementById('mapLat').textContent = lat.toFixed(6);
+    document.getElementById('mapLng').textContent = lng.toFixed(6);
+    document.getElementById('mapAddress').textContent = 'Fetching address...';
+    document.getElementById('confirmLocationBtn').disabled = true;
+    
+    // Use Nominatim API for reverse geocoding
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+        .then(response => response.json())
+        .then(data => {
+            const address = data.address.road ? 
+                `${data.address.road}, ${data.address.city || data.address.town || data.address.county || data.address.country}` :
+                data.display_name;
+            
+            selectedLocation.address = address;
+            document.getElementById('mapAddress').textContent = address;
+            document.getElementById('confirmLocationBtn').disabled = false;
+        })
+        .catch(error => {
+            console.error('Error fetching address:', error);
+            const fallbackAddress = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            selectedLocation.address = fallbackAddress;
+            document.getElementById('mapAddress').textContent = fallbackAddress;
+            document.getElementById('confirmLocationBtn').disabled = false;
+        });
+}
+
+// Close modal when clicking outside of it
+window.addEventListener('click', function(event) {
+    const modal = document.getElementById('mapModal');
+    if (event.target === modal) {
+        closeMapModal();
+    }
+});
+
+// 12-hour time format validation and conversion
+function convertTo24Hour(time12h) {
+    const [time, period] = time12h.trim().toUpperCase().split(/\s+/);
+    if (!time || !period) return null;
+    
+    const [hours, minutes] = time.split(':');
+    if (!hours || !minutes) return null;
+    
+    let hours24 = parseInt(hours);
+    const mins = parseInt(minutes);
+    
+    if (isNaN(hours24) || isNaN(mins) || mins < 0 || mins > 59) return null;
+    if (hours24 < 1 || hours24 > 12) return null;
+    
+    if (period === 'AM') {
+        if (hours24 === 12) hours24 = 0;
+    } else if (period === 'PM') {
+        if (hours24 !== 12) hours24 += 12;
+    } else {
+        return null;
+    }
+    
+    return `${String(hours24).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+}
+
+function convertTo12Hour(time24h) {
+    const [hours, minutes] = time24h.split(':');
+    let hours24 = parseInt(hours);
+    const period = hours24 >= 12 ? 'PM' : 'AM';
+    
+    if (hours24 > 12) {
+        hours24 -= 12;
+    } else if (hours24 === 0) {
+        hours24 = 12;
+    }
+    
+    return `${String(hours24).padStart(2, '0')}:${minutes} ${period}`;
+}
+
+// Handle form submission - convert 12-hour to 24-hour format
+document.querySelector('form').addEventListener('submit', function(e) {
+    const startTimeInput = document.getElementById('start_time');
+    const endTimeInput = document.getElementById('end_time');
+    
+    const time24Start = convertTo24Hour(startTimeInput.value);
+    const time24End = convertTo24Hour(endTimeInput.value);
+    
+    if (!time24Start) {
+        alert('Please enter a valid start time (e.g., 09:00 AM or 2:30 PM)');
+        e.preventDefault();
+        return;
+    }
+    
+    if (!time24End) {
+        alert('Please enter a valid end time (e.g., 09:00 AM or 2:30 PM)');
+        e.preventDefault();
+        return;
+    }
+    
+    // Convert to 24-hour format for server
+    startTimeInput.value = time24Start;
+    endTimeInput.value = time24End;
+});
+
+// Load existing times in 12-hour format if editing
+window.addEventListener('load', function() {
+    const startTimeInput = document.getElementById('start_time');
+    const endTimeInput = document.getElementById('end_time');
+    
+    // Populate with event times in 12-hour format
+    const startHour = {{ event.start_time.hour }};
+    const startMin = {{ event.start_time.minute }};
+    const endHour = {{ event.end_time.hour }};
+    const endMin = {{ event.end_time.minute }};
+    
+    const startTime24h = `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`;
+    const endTime24h = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`;
+    
+    startTimeInput.value = convertTo12Hour(startTime24h);
+    endTimeInput.value = convertTo12Hour(endTime24h);
+    
+    // Only show help on focus for empty fields
+    [startTimeInput, endTimeInput].forEach(input => {
+        input.addEventListener('focus', function() {
+            if (!this.value) {
+                this.placeholder = this.placeholder || (input === startTimeInput ? '09:00 AM' : '02:00 PM');
+            }
+        });
+    });
+});
+</script>
+
+<style>
+.location-icon-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    margin-left: 8px;
+    padding: 0;
+    vertical-align: middle;
+    transition: transform 0.2s;
+}
+
+.location-icon-btn:hover {
+    transform: scale(1.2);
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    align-items: center;
+    justify-content: center;
+}
+
+.map-modal-content {
+    background-color: #fefefe;
+    padding: 0;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #999;
+}
+
+.modal-close:hover {
+    color: #000;
+}
+
+.modal-body {
+    padding: 20px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.location-info {
+    background-color: #f5f5f5;
+    padding: 15px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.location-info p {
+    margin: 8px 0;
+}
+
+.modal-footer {
+    padding: 20px;
+    border-top: 1px solid #ddd;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+#map {
+    width: 100%;
+}
+</style>
+{% endblock %}

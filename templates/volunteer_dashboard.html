@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Volunteer Dashboard - Volunteer Coordination Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="page-header">
+        <h1>Volunteer Dashboard</h1>
+        <p class="subtitle">Welcome, {{ current_user.name }}</p>
+    </div>
+
+    <div class="dashboard-actions mb-4">
+        <a href="{{ url_for('list_events') }}" class="btn btn-primary btn-lg">
+            📅 Browse All Events
+        </a>
+        <a href="{{ url_for('my_registrations') }}" class="btn btn-secondary btn-lg">
+            ✓ My Registrations
+        </a>
+    </div>
+
+    <div class="dashboard-stats">
+        <div class="stat-card">
+            <h3>{{ registered_event_ids|length }}</h3>
+            <p>Events Registered</p>
+        </div>
+        <div class="stat-card">
+            <h3>{{ events|length }}</h3>
+            <p>Available Events</p>
+        </div>
+    </div>
+
+    {% if events %}
+        <h2 class="mt-5">Upcoming Volunteer Events</h2>
+        <div class="events-grid">
+            {% for event in events %}
+                <div class="event-card">
+                    <div class="event-header">
+                        <h3>{{ event.title }}</h3>
+                        <span class="event-status {% if event.status == 'Full' %}status-full{% else %}status-open{% endif %}">
+                            {{ event.status }}
+                        </span>
+                    </div>
+
+                    <div class="event-body">
+                        <p class="event-description">{{ event.description[:100] }}...</p>
+                        
+                        <div class="event-info">
+                            <div class="info-item">
+                                <strong>📅 Date:</strong> {{ event.date.strftime('%b %d, %Y') }}
+                            </div>
+                            <div class="info-item">
+                                <strong>⏰ Time:</strong> {{ event.start_time.strftime('%I:%M %p') }}
+                            </div>
+                            <div class="info-item">
+                                <strong>📍 Location:</strong> {{ event.location_text }}
+                            </div>
+                            <div class="info-item">
+                                <strong>👥 Spots:</strong> {{ event.required_volunteers - event.registered_volunteers }} / {{ event.required_volunteers }}
+                            </div>
+                        </div>
+
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {{ (event.registered_volunteers / event.required_volunteers * 100)|int }}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="event-footer">
+                        <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn btn-primary btn-sm">
+                            View Details
+                        </a>
+                        {% if event.google_maps_link %}
+                            <button type="button" class="btn btn-outline btn-sm" onclick="openEventMap('{{ event.google_maps_link }}', '{{ event.location_text }}')" title="Open map">
+                                🗺️ Map
+                            </button>
+                        {% endif %}
+                        
+                        {% if event.id in registered_event_ids %}
+                            <span class="btn btn-success btn-sm" style="cursor: default; pointer-events: none;">✓ Registered</span>
+                        {% elif event.status == 'Full' %}
+                            <span class="btn btn-outline btn-sm" style="cursor: default; pointer-events: none; color: #999;">Full</span>
+                        {% else %}
+                            <form method="POST" action="{{ url_for('register_event', event_id=event.id) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-success btn-sm">Register</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state mt-5">
+            <h3>No upcoming events</h3>
+            <p>Check back later for new volunteer opportunities</p>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+// Function to open Google Maps for an event
+function openEventMap(mapsLink, locationName) {
+    if (!mapsLink) {
+        alert('Map not available for this event');
+        return;
+    }
+    
+    // Extract coordinates from the maps link
+    let lat = null;
+    let lng = null;
+    
+    try {
+        const coordMatch = mapsLink.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (coordMatch) {
+            lat = parseFloat(coordMatch[1]);
+            lng = parseFloat(coordMatch[2]);
+        }
+    } catch (e) {
+        console.error('Error parsing coordinates:', e);
+    }
+    
+    if (lat && lng) {
+        // Try to open Google Maps app on mobile devices
+        const mapsAppUrl = `geo:${lat},${lng}?q=${encodeURIComponent(locationName)}`;
+        const mapsWebUrl = `https://www.google.com/maps/search/${encodeURIComponent(locationName)}/@${lat},${lng},17z`;
+        
+        // Attempt to open app
+        window.location.href = mapsAppUrl;
+        
+        // If app doesn't open, fall back to web version after 1 second
+        setTimeout(function() {
+            window.open(mapsWebUrl, '_blank');
+        }, 1000);
+    } else {
+        // If we can't extract coordinates, just open the maps link
+        window.open(mapsLink, '_blank');
+    }
+}
+</script>
+{% endblock %}

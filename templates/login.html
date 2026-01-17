@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Volunteer Coordination Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="form-container">
+        <h1>Login</h1>
+        <p class="text-center">Welcome back! Sign in to your account</p>
+
+        <form method="POST" class="form-group">
+            <div class="form-field">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" required placeholder="you@example.com">
+            </div>
+
+            <div class="form-field">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required placeholder="Enter your password">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+        </form>
+
+        <div class="form-footer">
+            <p>Don't have an account?</p>
+            <div class="signup-links">
+                <a href="{{ url_for('signup', type='volunteer') }}" class="btn btn-outline-primary">Sign Up as Volunteer</a>
+                <a href="{{ url_for('signup', type='organization') }}" class="btn btn-outline-secondary">Sign Up as Organization</a>
+            </div>
+        </div>
+
+        <div class="demo-credentials mt-4 p-3 bg-light rounded">
+            <h5>Demo Credentials (Testing)</h5>
+            <p><strong>Volunteer:</strong> volunteer1@example.com / Volunteer@123</p>
+            <p><strong>Organization:</strong> organization@example.com / Org@123</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

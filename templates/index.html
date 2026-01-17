@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Volunteer Coordination Platform{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="container hero-content">
+        <h1>Welcome to the Volunteer Coordination Platform</h1>
+        <p>Connect organizations with passionate volunteers and make a difference in your community.</p>
+        
+        {% if not current_user %}
+            <div class="hero-buttons">
+                <a href="{{ url_for('signup', type='volunteer') }}" class="btn btn-primary btn-lg">Become a Volunteer</a>
+                <a href="{{ url_for('signup', type='organization') }}" class="btn btn-secondary btn-lg">Register Organization</a>
+            </div>
+        {% else %}
+            <div class="hero-buttons">
+                {% if current_user.role == 'organization' %}
+                    <a href="{{ url_for('org_dashboard') }}" class="btn btn-primary btn-lg">Go to Dashboard</a>
+                    <a href="{{ url_for('create_event') }}" class="btn btn-secondary btn-lg">Create Event</a>
+                {% else %}
+                    <a href="{{ url_for('volunteer_dashboard') }}" class="btn btn-primary btn-lg">Browse Events</a>
+                    <a href="{{ url_for('my_registrations') }}" class="btn btn-secondary btn-lg">My Registrations</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="container features-section mt-5">
+    <h2>Why Choose Our Platform?</h2>
+    <div class="features-grid">
+        <div class="feature-card">
+            <h3>📋 Easy Event Management</h3>
+            <p>Organizations can easily create, manage, and track volunteer events with our intuitive interface.</p>
+        </div>
+        <div class="feature-card">
+            <h3>👥 Find Opportunities</h3>
+            <p>Volunteers can discover meaningful volunteer opportunities in their community and register instantly.</p>
+        </div>
+        <div class="feature-card">
+            <h3>🔒 Secure & Reliable</h3>
+            <p>Enterprise-level security with JWT authentication and secure password handling.</p>
+        </div>
+        <div class="feature-card">
+            <h3>⏰ Smart Scheduling</h3>
+            <p>Automatic conflict detection ensures volunteers don't double-book events.</p>
+        </div>
+        <div class="feature-card">
+            <h3>📊 Real-time Updates</h3>
+            <p>Track registration counts and automatically mark events as full when capacity is reached.</p>
+        </div>
+        <div class="feature-card">
+            <h3>🌍 Community Impact</h3>
+            <p>Build stronger communities by connecting those who want to help with those who need it.</p>
+        </div>
+    </div>
+</div>
+
+<div class="info-section bg-light mt-5 py-4">
+    <div class="container">
+        <h2>Get Started Today</h2>
+        <div class="info-grid">
+            <div class="info-item">
+                <h4>For Volunteers</h4>
+                <ol>
+                    <li>Create your account</li>
+                    <li>Browse available events</li>
+                    <li>Register for events</li>
+                    <li>Start making a difference</li>
+                </ol>
+            </div>
+            <div class="info-item">
+                <h4>For Organizations</h4>
+                <ol>
+                    <li>Register your organization</li>
+                    <li>Create volunteer events</li>
+                    <li>Track registrations</li>
+                    <li>Build your volunteer team</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
