@@ -13,7 +13,10 @@
             <div class="nav-brand">
                 <a href="{{ url_for('index') }}">🤝 Volunteer Platform</a>
             </div>
-            <ul class="nav-menu">
+            <button class="hamburger-menu" id="hamburgerMenu" aria-label="Toggle Menu">
+                ☰
+            </button>
+            <ul class="nav-menu" id="navMenu">
                 <li><a href="{{ url_for('list_events') }}" class="{% if request.endpoint == 'list_events' %}active{% endif %}">Events</a></li>
                 
                 {% if current_user %}

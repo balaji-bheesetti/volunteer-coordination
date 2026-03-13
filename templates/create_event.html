@@ -26,13 +26,47 @@
                 </div>
 
                 <div class="form-field">
-                    <label for="start_time">Start Time (12-hour)</label>
-                    <input type="text" id="start_time" name="start_time" placeholder="12:00 AM" required>
+                    <label>Start Time</label>
+                    <div class="time-select">
+                        <select id="start_hour" class="time-part">
+                            {% for h in range(1,13) %}
+                                <option value="{{'%02d' % h}}">{{'%02d' % h}}</option>
+                            {% endfor %}
+                        </select>
+                        :
+                        <select id="start_minute" class="time-part">
+                            {% for m in range(0,60,5) %}
+                                <option value="{{'%02d' % m}}">{{'%02d' % m}}</option>
+                            {% endfor %}
+                        </select>
+                        <select id="start_ampm" class="time-part">
+                            <option>AM</option>
+                            <option>PM</option>
+                        </select>
+                    </div>
+                    <input type="hidden" id="start_time" name="start_time" required>
                 </div>
 
                 <div class="form-field">
-                    <label for="end_time">End Time (12-hour)</label>
-                    <input type="text" id="end_time" name="end_time" placeholder="01:00 PM" required>
+                    <label>End Time</label>
+                    <div class="time-select">
+                        <select id="end_hour" class="time-part">
+                            {% for h in range(1,13) %}
+                                <option value="{{'%02d' % h}}">{{'%02d' % h}}</option>
+                            {% endfor %}
+                        </select>
+                        :
+                        <select id="end_minute" class="time-part">
+                            {% for m in range(0,60,5) %}
+                                <option value="{{'%02d' % m}}">{{'%02d' % m}}</option>
+                            {% endfor %}
+                        </select>
+                        <select id="end_ampm" class="time-part">
+                            <option>AM</option>
+                            <option>PM</option>
+                        </select>
+                    </div>
+                    <input type="hidden" id="end_time" name="end_time" required>
                 </div>
             </div>
 
@@ -254,8 +288,28 @@ function convertTo12Hour(time24h) {
     return `${String(hours24).padStart(2, '0')}:${minutes} ${period}`;
 }
 
-// Handle form submission - convert 12-hour to 24-hour format
+// Sync select-based time inputs with hidden fields
+function updateHidden(pref) {
+    const hour = document.getElementById(pref + '_hour').value;
+    const minute = document.getElementById(pref + '_minute').value;
+    const ampm = document.getElementById(pref + '_ampm').value;
+    document.getElementById(pref).value = `${hour}:${minute} ${ampm}`;
+}
+
+['start','end'].forEach(pref => {
+    ['hour','minute','ampm'].forEach(part => {
+        document.getElementById(pref + '_' + part).addEventListener('change', function() {
+            updateHidden(pref + '_time');
+        });
+    });
+});
+
+// Handle form submission - convert 12-hour hidden value to 24-hour format
+// (hidden inputs hold strings like 09:00 AM)
 document.querySelector('form').addEventListener('submit', function(e) {
+    // ensure hidden fields are up-to-date
+    updateHidden('start_time');
+    updateHidden('end_time');
     const startTimeInput = document.getElementById('start_time');
     const endTimeInput = document.getElementById('end_time');
     
@@ -263,35 +317,41 @@ document.querySelector('form').addEventListener('submit', function(e) {
     const time24End = convertTo24Hour(endTimeInput.value);
     
     if (!time24Start) {
-        alert('Please enter a valid start time (e.g., 09:00 AM or 2:30 PM)');
+        alert('Please select a valid start time');
         e.preventDefault();
         return;
     }
     
     if (!time24End) {
-        alert('Please enter a valid end time (e.g., 09:00 AM or 2:30 PM)');
+        alert('Please select a valid end time');
         e.preventDefault();
         return;
     }
     
-    // Convert to 24-hour format for server
     startTimeInput.value = time24Start;
     endTimeInput.value = time24End;
 });
 
-// Load existing times in 12-hour format if editing
+// Load existing times in 12-hour format if editing, prefill selects
 window.addEventListener('load', function() {
     const startTimeInput = document.getElementById('start_time');
     const endTimeInput = document.getElementById('end_time');
-    
-    // Only show help on focus for empty fields
-    [startTimeInput, endTimeInput].forEach(input => {
-        input.addEventListener('focus', function() {
-            if (!this.value) {
-                this.placeholder = this.placeholder || (input === startTimeInput ? '09:00 AM' : '02:00 PM');
+
+    function setSelectsFromHidden(pref) {
+        const hidden = document.getElementById(pref);
+        if (hidden && hidden.value) {
+            // value like "09:00 AM"
+            const parts = hidden.value.split(/[: ]/);
+            if (parts.length === 3) {
+                document.getElementById(pref.replace('_time','') + '_hour').value = parts[0];
+                document.getElementById(pref.replace('_time','') + '_minute').value = parts[1];
+                document.getElementById(pref.replace('_time','') + '_ampm').value = parts[2];
             }
-        });
-    });
+        }
+    }
+
+    setSelectsFromHidden('start_time');
+    setSelectsFromHidden('end_time');
 });
 </script>
 
@@ -309,6 +369,24 @@ window.addEventListener('load', function() {
 
 .location-icon-btn:hover {
     transform: scale(1.2);
+}
+
+/* time selector styling */
+.time-select {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.time-select .time-part {
+    padding: 4px 6px;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 60px !important;
+    margin: 0;
+}
+.time-select .time-part:last-child {
+    width: auto !important;
 }
 
 .modal {

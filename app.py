@@ -18,11 +18,10 @@ from flask import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import CheckConstraint
+from sqlalchemy import CheckConstraint, or_, and_
 from twilio.rest import Client
 from flask_apscheduler import APScheduler
 
-# ==================== CONFIGURATION ====================
 
 load_dotenv()
 
@@ -35,7 +34,7 @@ class Config:
 
     # Database settings
     SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL", "mysql+pymysql://root:password@localhost:3306/volunteer_db"
+        "DATABASE_URL", "mysql+pymysql://root:Password%2121@localhost:3306/volunteer_db"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
@@ -58,7 +57,7 @@ class Config:
             "id": "event_reminder_job",
             "func": "app:check_and_send_event_reminders",
             "trigger": "interval",
-            "minutes": 30,
+            "minutes": 1,
         }
     ]
 
@@ -168,7 +167,7 @@ class Event(db.Model):
     google_maps_link = db.Column(db.String(500), nullable=True)
     required_volunteers = db.Column(db.Integer, nullable=False, default=5)
     registered_volunteers = db.Column(db.Integer, default=0)
-    status = db.Column(db.Enum("Open", "Full"), default="Open")
+    status = db.Column(db.Enum("Open", "Full", "Completed"), default="Open")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -177,15 +176,46 @@ class Event(db.Model):
     )
 
     def update_status(self):
-        """Update event status based on registered volunteer count"""
+        """Update event status based on time and registered volunteer count"""
+        # Use local time instead of UTC for accurate comparisons
+        from datetime import datetime as dt
+        current_datetime = dt.now()  # Local time, not UTC
+        
+        # Check if event has ended by comparing current time with event end time
+        # If current time is AFTER or EQUAL to event end time, mark as Completed
+        event_end_datetime = None
+        try:
+            if self.date and self.end_time:
+                event_date = self.date
+                if isinstance(event_date, dt):
+                    event_date = event_date.date()
+                event_end_datetime = dt.combine(event_date, self.end_time)
+                
+                # Debug: show the comparison
+                is_event_past = current_datetime >= event_end_datetime
+                print(f"Event {self.id}: Current={current_datetime}, EndTime={event_end_datetime}, IsPast={is_event_past}")
+                
+                if is_event_past:
+                    self.status = "Completed"
+                    print(f"  -> Marked as COMPLETED")
+                    return self.status
+        except Exception as e:
+            print(f"Error in update_status for event {self.id}: {e}")
+        
+        # If event hasn't ended, check if it's full
         if self.registered_volunteers >= self.required_volunteers:
             self.status = "Full"
         else:
             self.status = "Open"
+        
         return self.status
 
     def can_register(self, volunteer_id):
         """Check if volunteer can register for this event"""
+        # Check if event has already ended
+        if not is_event_upcoming(self):
+            return False, "This event has already ended"
+        
         # Check if volunteer already registered
         existing = Registration.query.filter_by(
             event_id=self.id, volunteer_id=volunteer_id
@@ -199,7 +229,7 @@ class Event(db.Model):
             return False, "Event is full"
 
         # Check for time conflict
-        volunteer = User.query.get(volunteer_id)
+        volunteer = db.session.get(User, volunteer_id)
         if volunteer:
             conflicting = (
                 db.session.query(Event)
@@ -214,7 +244,7 @@ class Event(db.Model):
             )
 
             if conflicting:
-                return False, "Time conflict with another event"
+                return False, "You can only register for one event at the same time"
 
         return True, "Can register"
 
@@ -342,6 +372,100 @@ def get_current_user():
     if "user_id" in session:
         return User.query.get(session["user_id"])
     return None
+
+
+def is_event_upcoming(event, current_datetime=None):
+    """
+    Check if an event is still upcoming (hasn't ended yet).
+    An event is considered upcoming if the current time is BEFORE the event's end time.
+    Uses LOCAL time for accurate comparison.
+    
+    Args:
+        event: Event object to check
+        current_datetime: Current datetime to compare against (defaults to local now)
+    
+    Returns:
+        bool: True if event is upcoming (hasn't ended), False if it has ended
+    """
+    try:
+        if current_datetime is None:
+            current_datetime = datetime.now()  # Use local time, not UTC
+        
+        # Validate event has required attributes
+        if not event or not hasattr(event, 'date') or not hasattr(event, 'end_time'):
+            return False
+        
+        if event.date is None or event.end_time is None:
+            return False
+        
+        # Convert event.date to date object if it's a datetime
+        event_date = event.date
+        if isinstance(event_date, datetime):
+            event_date = event_date.date()
+        
+        # Create event end datetime by combining date and end_time
+        try:
+            event_end_datetime = datetime.combine(event_date, event.end_time)
+        except (TypeError, ValueError) as e:
+            print(f"Error combining date and time for event {event.id}: {e}")
+            return False
+        
+        # Ensure current_datetime is a datetime object
+        if isinstance(current_datetime, date) and not isinstance(current_datetime, datetime):
+            # Convert date to datetime (start of day)
+            current_datetime = datetime.combine(current_datetime, datetime.min.time())
+        
+        # Debug: Log comparison
+        print(f"Event {event.id}: End={event_end_datetime}, Current={current_datetime}, Upcoming={event_end_datetime > current_datetime}")
+        
+        # Event is upcoming if its end datetime is in the future
+        # (i.e., the event hasn't ended yet)
+        is_upcoming = event_end_datetime > current_datetime
+        return is_upcoming
+        
+    except Exception as e:
+        # If there's any unexpected error, log it and assume event has ended for safety
+        print(f"Unexpected error in is_event_upcoming for event {event.id}: {e}")
+        return False
+
+
+def mark_past_events_as_completed():
+    """
+    Mark all past events (where end time has passed) as "Completed"
+    This function is called periodically to keep event statuses up-to-date
+    Uses LOCAL time for accurate comparison
+    """
+    try:
+        now = datetime.now()  # Use local time, not UTC
+        
+        # Find all events that have ended but are not yet marked as Completed
+        past_events = Event.query.filter(
+            Event.status != "Completed"
+        ).all()
+        
+        completed_count = 0
+        for event in past_events:
+            if not is_event_upcoming(event, now):
+                event.status = "Completed"
+                completed_count += 1
+        
+        if completed_count > 0:
+            db.session.commit()
+            print(f"✓ Marked {completed_count} past event(s) as completed")
+        
+        return completed_count
+    
+    except Exception as e:
+        print(f"Error marking past events as completed: {str(e)}")
+        db.session.rollback()
+        return 0
+
+
+def get_user_by_email(email):
+    """
+    Get user by email
+    """
+    return User.query.filter_by(email=email).first()
 
 
 def validate_email(email):
@@ -507,8 +631,11 @@ def check_and_send_event_reminders():
     """
     try:
         with app.app_context():
+            # Mark past events as completed
+            mark_past_events_as_completed()
+            
             # Get current time
-            now = datetime.utcnow()
+            now = datetime.now()  # Use local time, not UTC
             # Calculate 12 hours from now
             reminder_time = now + timedelta(hours=12)
 
@@ -785,6 +912,9 @@ def profile():
         # Update basic information
         current_user.name = name
         if phone:
+            if not validate_phone(phone):
+                flash("Invalid phone number", "error")
+                return redirect(url_for("profile"))
             current_user.phone = phone
 
         # Handle organization-specific fields
@@ -860,13 +990,40 @@ def refresh():
 @app.route("/events", methods=["GET"])
 def list_events():
     """
-    List all available events
-    Volunteers see all open events, organizations see their events
+    List all available events (both upcoming and past)
+    Volunteers see all events, organizations see their events
     """
     current_user = get_current_user()
+    current_datetime = datetime.now()  # use local time
 
-    # Get all events ordered by date
-    events = Event.query.order_by(Event.date, Event.start_time).all()
+    # Get all events
+    all_events = Event.query.order_by(Event.date.desc(), Event.start_time.desc()).all()
+    
+    # Update statuses for all events and ensure completed ones are marked
+    for event in all_events:
+        event.update_status()
+        # Double-check: if event is past, make sure it's marked as completed
+        if not is_event_upcoming(event, current_datetime) and event.status != "Completed":
+            event.status = "Completed"
+    
+    db.session.commit()
+    
+    # Separate into upcoming and past - only include truly upcoming events
+    upcoming_events = []
+    past_events = []
+    
+    for event in all_events:
+        # Use is_event_upcoming as the main check for separation
+        if is_event_upcoming(event, current_datetime):
+            upcoming_events.append(event)
+        else:
+            # All past events regardless of status
+            past_events.append(event)
+    
+    # Re-sort upcoming events by date ascending
+    upcoming_events.sort(key=lambda e: (e.date, e.start_time))
+    # Keep past events sorted by date descending
+    past_events.sort(key=lambda e: (e.date, e.start_time), reverse=True)
 
     # For volunteers, add registration info
     volunteer_registrations = set()
@@ -876,7 +1033,8 @@ def list_events():
 
     return render_template(
         "events.html",
-        events=events,
+        upcoming_events=upcoming_events,
+        past_events=past_events,
         current_user=current_user,
         volunteer_registrations=volunteer_registrations,
     )
@@ -888,7 +1046,16 @@ def event_detail(event_id):
     Show event details
     """
     event = Event.query.get_or_404(event_id)
-    organization = User.query.get(event.organization_id)
+    current_datetime = datetime.now()  # Use local time, not UTC
+    
+    # Update event status based on current time
+    event.update_status()
+    # Double-check: if event is past, make sure it's marked as completed
+    if not is_event_upcoming(event, current_datetime) and event.status != "Completed":
+        event.status = "Completed"
+    db.session.commit()
+    
+    organization = db.session.get(User, event.organization_id)
     current_user = get_current_user()
 
     # Check if current user is registered
@@ -901,12 +1068,26 @@ def event_detail(event_id):
             is not None
         )
 
+    # Fetch registered volunteers
+    registrations = Registration.query.filter_by(event_id=event_id).all()
+    registered_volunteers = []
+    for reg in registrations:
+        volunteer = db.session.get(User, reg.volunteer_id)
+        if volunteer:
+            registered_volunteers.append({
+                "name": volunteer.name,
+                "email": volunteer.email,
+                "phone": volunteer.phone
+            })
+
     return render_template(
         "event_detail.html",
         event=event,
         organization=organization,
         current_user=current_user,
         is_registered=is_registered,
+        registered_volunteers=registered_volunteers,
+        is_event_ended=not is_event_upcoming(event, current_datetime),
     )
 
 
@@ -977,17 +1158,43 @@ def unregister_event(event_id):
 @organization_required
 def org_dashboard():
     """
-    Organization dashboard showing their events
+    Organization dashboard showing their events (both upcoming and past)
     """
     current_user = get_current_user()
-    events = (
-        Event.query.filter_by(organization_id=current_user.id)
-        .order_by(Event.date, Event.start_time)
-        .all()
-    )
+    current_datetime = datetime.now()  # Use local time, not UTC
+    
+    # Get all events for this organization
+    all_events = Event.query.filter_by(organization_id=current_user.id).all()
+    
+    # Update statuses for all events and ensure completed ones are marked
+    for event in all_events:
+        event.update_status()
+        # Double-check: if event is past, make sure it's marked as completed
+        if not is_event_upcoming(event, current_datetime) and event.status != "Completed":
+            event.status = "Completed"
+    
+    db.session.commit()
+    
+    # Separate into upcoming and past - only include truly upcoming events
+    upcoming_events = []
+    past_events = []
+    
+    for event in all_events:
+        if is_event_upcoming(event, current_datetime):
+            upcoming_events.append(event)
+        else:
+            past_events.append(event)
+    
+    # Sort upcoming by date ascending
+    upcoming_events.sort(key=lambda e: (e.date, e.start_time))
+    # Sort past by date descending
+    past_events.sort(key=lambda e: (e.date, e.start_time), reverse=True)
 
     return render_template(
-        "org_dashboard.html", events=events, current_user=current_user
+        "org_dashboard.html", 
+        upcoming_events=upcoming_events, 
+        past_events=past_events,
+        current_user=current_user
     )
 
 
@@ -1046,7 +1253,7 @@ def create_event():
             flash("Start time must be before end time", "error")
             return redirect(url_for("create_event"))
 
-        if date_obj < datetime.utcnow().date():
+        if date_obj < datetime.now().date():
             flash("Event date cannot be in the past", "error")
             return redirect(url_for("create_event"))
 
@@ -1159,16 +1366,37 @@ def delete_event(event_id):
 @volunteer_required
 def volunteer_dashboard():
     """
-    Volunteer dashboard showing upcoming events
+    Volunteer dashboard showing upcoming and past events
     """
     current_user = get_current_user()
+    current_datetime = datetime.now()  # Use local time, not UTC
 
-    # Get all upcoming events
-    events = (
-        Event.query.filter(Event.date >= datetime.utcnow().date())
-        .order_by(Event.date, Event.start_time)
-        .all()
-    )
+    # Get all events
+    all_events = Event.query.all()
+    
+    # Update statuses for all events and ensure completed ones are marked
+    for event in all_events:
+        event.update_status()
+        # Double-check: if event is past, make sure it's marked as completed
+        if not is_event_upcoming(event, current_datetime) and event.status != "Completed":
+            event.status = "Completed"
+    
+    db.session.commit()
+    
+    # Separate into upcoming and past - only include truly upcoming events
+    upcoming_events = []
+    past_events = []
+    
+    for event in all_events:
+        if is_event_upcoming(event, current_datetime):
+            upcoming_events.append(event)
+        else:
+            past_events.append(event)
+    
+    # Sort upcoming by date ascending
+    upcoming_events.sort(key=lambda e: (e.date, e.start_time))
+    # Sort past by date descending
+    past_events.sort(key=lambda e: (e.date, e.start_time), reverse=True)
 
     # Get volunteer's registrations
     registrations = Registration.query.filter_by(volunteer_id=current_user.id).all()
@@ -1176,7 +1404,8 @@ def volunteer_dashboard():
 
     return render_template(
         "volunteer_dashboard.html",
-        events=events,
+        upcoming_events=upcoming_events,
+        past_events=past_events,
         current_user=current_user,
         registered_event_ids=registered_event_ids,
     )
@@ -1186,9 +1415,10 @@ def volunteer_dashboard():
 @volunteer_required
 def my_registrations():
     """
-    Show volunteer's current event registrations
+    Show volunteer's event registrations (both upcoming and past)
     """
     current_user = get_current_user()
+    current_datetime = datetime.now()  # Use local time, not UTC
 
     registrations = (
         Registration.query.filter_by(volunteer_id=current_user.id)
@@ -1196,21 +1426,40 @@ def my_registrations():
         .all()
     )
 
-    events = []
+    upcoming_events = []
+    past_events = []
+    
     for reg in registrations:
-        event = Event.query.get(reg.event_id)
+        event = db.session.get(Event, reg.event_id)
         if event:
-            events.append(
-                {
-                    "registration": reg,
-                    "event": event,
-                    "organization": User.query.get(event.organization_id),
-                }
-            )
+            # Update event status based on current time
+            event.update_status()
+            # Double-check: if event is past, make sure it's marked as completed
+            if not is_event_upcoming(event, current_datetime) and event.status != "Completed":
+                event.status = "Completed"
+            
+            event_data = {
+                "registration": reg,
+                "event": event,
+                "organization": db.session.get(User, event.organization_id),
+            }
+            # Use helper function to check if event is upcoming
+            if is_event_upcoming(event, current_datetime):
+                upcoming_events.append(event_data)
+            else:
+                past_events.append(event_data)
+    
+    db.session.commit()
+    
+    # Sort upcoming events by date
+    upcoming_events.sort(key=lambda x: (x["event"].date, x["event"].start_time))
+    # Sort past events by date (newest first)
+    past_events.sort(key=lambda x: (x["event"].date, x["event"].start_time), reverse=True)
 
     return render_template(
         "my_registrations.html",
-        events=events,
+        upcoming_events=upcoming_events,
+        past_events=past_events,
         current_user=current_user,
     )
 

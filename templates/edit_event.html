@@ -26,13 +26,47 @@
                 </div>
 
                 <div class="form-field">
-                    <label for="start_time">Start Time (12-hour)</label>
-                    <input type="text" id="start_time" name="start_time" placeholder="12:00 AM" required>
+                    <label>Start Time</label>
+                    <div class="time-select">
+                        <select id="start_hour" class="time-part">
+                            {% for h in range(1,13) %}
+                                <option value="{{'%02d' % h}}">{{'%02d' % h}}</option>
+                            {% endfor %}
+                        </select>
+                        :
+                        <select id="start_minute" class="time-part">
+                            {% for m in range(0,60,5) %}
+                                <option value="{{'%02d' % m}}">{{'%02d' % m}}</option>
+                            {% endfor %}
+                        </select>
+                        <select id="start_ampm" class="time-part">
+                            <option>AM</option>
+                            <option>PM</option>
+                        </select>
+                    </div>
+                    <input type="hidden" id="start_time" name="start_time" required value="{{ event.start_time.strftime('%I:%M %p') }}">
                 </div>
 
                 <div class="form-field">
-                    <label for="end_time">End Time (12-hour)</label>
-                    <input type="text" id="end_time" name="end_time" placeholder="01:00 PM" required>
+                    <label>End Time</label>
+                    <div class="time-select">
+                        <select id="end_hour" class="time-part">
+                            {% for h in range(1,13) %}
+                                <option value="{{'%02d' % h}}">{{'%02d' % h}}</option>
+                            {% endfor %}
+                        </select>
+                        :
+                        <select id="end_minute" class="time-part">
+                            {% for m in range(0,60,5) %}
+                                <option value="{{'%02d' % m}}">{{'%02d' % m}}</option>
+                            {% endfor %}
+                        </select>
+                        <select id="end_ampm" class="time-part">
+                            <option>AM</option>
+                            <option>PM</option>
+                        </select>
+                    </div>
+                    <input type="hidden" id="end_time" name="end_time" required value="{{ event.end_time.strftime('%I:%M %p') }}">
                 </div>
             </div>
 
@@ -219,20 +253,20 @@ window.addEventListener('click', function(event) {
     }
 });
 
-// 12-hour time format validation and conversion
+// helpers for converting between formats and syncing selects
 function convertTo24Hour(time12h) {
     const [time, period] = time12h.trim().toUpperCase().split(/\s+/);
     if (!time || !period) return null;
-    
+
     const [hours, minutes] = time.split(':');
     if (!hours || !minutes) return null;
-    
+
     let hours24 = parseInt(hours);
     const mins = parseInt(minutes);
-    
+
     if (isNaN(hours24) || isNaN(mins) || mins < 0 || mins > 59) return null;
     if (hours24 < 1 || hours24 > 12) return null;
-    
+
     if (period === 'AM') {
         if (hours24 === 12) hours24 = 0;
     } else if (period === 'PM') {
@@ -240,7 +274,7 @@ function convertTo24Hour(time12h) {
     } else {
         return null;
     }
-    
+
     return `${String(hours24).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
 }
 
@@ -248,66 +282,72 @@ function convertTo12Hour(time24h) {
     const [hours, minutes] = time24h.split(':');
     let hours24 = parseInt(hours);
     const period = hours24 >= 12 ? 'PM' : 'AM';
-    
+
     if (hours24 > 12) {
         hours24 -= 12;
     } else if (hours24 === 0) {
         hours24 = 12;
     }
-    
+
     return `${String(hours24).padStart(2, '0')}:${minutes} ${period}`;
 }
 
-// Handle form submission - convert 12-hour to 24-hour format
-document.querySelector('form').addEventListener('submit', function(e) {
-    const startTimeInput = document.getElementById('start_time');
-    const endTimeInput = document.getElementById('end_time');
-    
-    const time24Start = convertTo24Hour(startTimeInput.value);
-    const time24End = convertTo24Hour(endTimeInput.value);
-    
-    if (!time24Start) {
-        alert('Please enter a valid start time (e.g., 09:00 AM or 2:30 PM)');
-        e.preventDefault();
-        return;
-    }
-    
-    if (!time24End) {
-        alert('Please enter a valid end time (e.g., 09:00 AM or 2:30 PM)');
-        e.preventDefault();
-        return;
-    }
-    
-    // Convert to 24-hour format for server
-    startTimeInput.value = time24Start;
-    endTimeInput.value = time24End;
-});
+function updateHidden(hiddenId) {
+    const hour = document.getElementById(hiddenId.replace('_time','') + '_hour').value;
+    const minute = document.getElementById(hiddenId.replace('_time','') + '_minute').value;
+    const ampm = document.getElementById(hiddenId.replace('_time','') + '_ampm').value;
+    document.getElementById(hiddenId).value = `${hour}:${minute} ${ampm}`;
+}
 
-// Load existing times in 12-hour format if editing
-window.addEventListener('load', function() {
-    const startTimeInput = document.getElementById('start_time');
-    const endTimeInput = document.getElementById('end_time');
-    
-    // Populate with event times in 12-hour format
-    const startHour = {{ event.start_time.hour }};
-    const startMin = {{ event.start_time.minute }};
-    const endHour = {{ event.end_time.hour }};
-    const endMin = {{ event.end_time.minute }};
-    
-    const startTime24h = `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`;
-    const endTime24h = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`;
-    
-    startTimeInput.value = convertTo12Hour(startTime24h);
-    endTimeInput.value = convertTo12Hour(endTime24h);
-    
-    // Only show help on focus for empty fields
-    [startTimeInput, endTimeInput].forEach(input => {
-        input.addEventListener('focus', function() {
-            if (!this.value) {
-                this.placeholder = this.placeholder || (input === startTimeInput ? '09:00 AM' : '02:00 PM');
-            }
+['start','end'].forEach(pref => {
+    ['hour','minute','ampm'].forEach(part => {
+        document.getElementById(pref + '_' + part).addEventListener('change', function() {
+            updateHidden(pref + '_time');
         });
     });
+});
+
+// form submission handler
+document.querySelector('form').addEventListener('submit', function(e) {
+    updateHidden('start_time');
+    updateHidden('end_time');
+    const startInput = document.getElementById('start_time');
+    const endInput = document.getElementById('end_time');
+    const time24Start = convertTo24Hour(startInput.value);
+    const time24End = convertTo24Hour(endInput.value);
+    if (!time24Start) {
+        alert('Please select a valid start time');
+        e.preventDefault();
+        return;
+    }
+    if (!time24End) {
+        alert('Please select a valid end time');
+        e.preventDefault();
+        return;
+    }
+    startInput.value = time24Start;
+    endInput.value = time24End;
+});
+
+// initialize selects based on hidden values (handles both 12h or 24h formats)
+window.addEventListener('load', function() {
+    function setSelectsFromHidden(pref) {
+        const hidden = document.getElementById(pref);
+        if (hidden && hidden.value) {
+            let value = hidden.value;
+            if (!/[AP]M$/i.test(value)) {
+                value = convertTo12Hour(value);
+            }
+            const parts = value.split(/[: ]/);
+            if (parts.length === 3) {
+                document.getElementById(pref.replace('_time','') + '_hour').value = parts[0];
+                document.getElementById(pref.replace('_time','') + '_minute').value = parts[1];
+                document.getElementById(pref.replace('_time','') + '_ampm').value = parts[2];
+            }
+        }
+    }
+    setSelectsFromHidden('start_time');
+    setSelectsFromHidden('end_time');
 });
 </script>
 
@@ -325,6 +365,33 @@ window.addEventListener('load', function() {
 
 .location-icon-btn:hover {
     transform: scale(1.2);
+}
+
+/* time selector styling */
+.time-select {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.time-select .time-part {
+    padding: 4px 6px;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 60px !important;
+    margin: 0 !important;
+}
+.time-select .time-part:last-child {
+    width: auto !important;
+}
+
+.form-field .time-select select {
+    width: 60px !important;
+    padding: 4px 6px !important;
+}
+
+.form-field .time-select select:last-of-type {
+    width: auto !important;
 }
 
 .modal {

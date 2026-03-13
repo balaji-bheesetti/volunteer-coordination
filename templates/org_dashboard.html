@@ -17,21 +17,21 @@
 
     <div class="dashboard-stats">
         <div class="stat-card">
-            <h3>{{ events|length }}</h3>
+            <h3>{{ upcoming_events|length + past_events|length }}</h3>
             <p>Total Events</p>
         </div>
         <div class="stat-card">
-            <h3>{{ events|selectattr('status', 'equalto', 'Open')|list|length }}</h3>
+            <h3>{{ upcoming_events|selectattr('status', 'equalto', 'Open')|list|length }}</h3>
             <p>Open Events</p>
         </div>
         <div class="stat-card">
-            <h3>{{ events|map(attribute='registered_volunteers')|sum }}</h3>
+            <h3>{{ (upcoming_events + past_events)|map(attribute='registered_volunteers')|sum }}</h3>
             <p>Total Registrations</p>
         </div>
     </div>
 
-    {% if events %}
-        <h2 class="mt-5">Your Events</h2>
+    {% if upcoming_events %}
+        <h2 class="mt-5">📅 Upcoming Events</h2>
         <div class="events-table-responsive">
             <table class="events-table">
                 <thead>
@@ -45,7 +45,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for event in events %}
+                    {% for event in upcoming_events %}
                         <tr>
                             <td><strong>{{ event.title }}</strong></td>
                             <td>{{ event.date.strftime('%b %d, %Y') }}</td>
@@ -70,7 +70,55 @@
                 </tbody>
             </table>
         </div>
+    {% endif %}
+
+    {% if past_events %}
+        <h2 class="mt-5">📜 Past Events</h2>
+        <div class="events-table-responsive">
+            <table class="events-table" style="opacity: 0.85;">
+                <thead>
+                    <tr>
+                        <th>Event Title</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Volunteers</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in past_events %}
+                        <tr>
+                            <td><strong>{{ event.title }}</strong></td>
+                            <td>{{ event.date.strftime('%b %d, %Y') }}</td>
+                            <td>{{ event.start_time.strftime('%I:%M %p') }} - {{ event.end_time.strftime('%I:%M %p') }}</td>
+                            <td>
+                                <span class="badge">{{ event.registered_volunteers }} attended</span>
+                            </td>
+                            <td>
+                                <span class="event-status" style="background-color: #999;">
+                                    Completed
+                                </span>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn btn-sm btn-outline">View</a>
+                                <form method="POST" action="{{ url_for('delete_event', event_id=event.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure?');">
+                                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     {% else %}
+        <h2 class="mt-5">📜 Past Events</h2>
+        <div class="empty-state">
+            <p>No past events organized yet</p>
+        </div>
+    {% endif %}
+
+    {% if not upcoming_events and not past_events %}
         <div class="empty-state mt-5">
             <h3>No events yet</h3>
             <p>Start by creating your first volunteer event</p>

@@ -27,7 +27,7 @@
                 {% if current_user.role == 'volunteer' %}
                     <div class="form-field">
                         <label for="phone">Phone Number</label>
-                        <input type="tel" id="phone" name="phone" value="{{ current_user.phone or '' }}" placeholder="(555) 123-4567">
+                        <input type="tel" id="phone" name="phone" value="{{ current_user.phone or '' }}" placeholder="+91 1234567890">
                         <small class="form-help">Phone number is used for SMS notifications when you register for events</small>
                     </div>
                 {% endif %}
@@ -55,7 +55,7 @@
 
                 <div class="form-field">
                     <label for="phone">Contact Phone Number</label>
-                    <input type="tel" id="phone" name="phone" value="{{ current_user.phone or '' }}" placeholder="(555) 123-4567">
+                    <input type="tel" id="phone" name="phone" value="{{ current_user.phone or '' }}" placeholder="+91 1234567890">
                 </div>
             </fieldset>
             {% endif %}

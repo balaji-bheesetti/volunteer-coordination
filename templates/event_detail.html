@@ -57,6 +57,36 @@
                     <p><strong>About:</strong> {{ organization.description }}</p>
                     <p><strong>Contact:</strong> {{ organization.email }}</p>
                 </div>
+
+                {% if current_user and current_user.role == 'organization' and current_user.id == organization.id %}
+                <div class="detail-section">
+                    <h3>👥 Registered Volunteers</h3>
+                    {% if registered_volunteers %}
+                        <div class="volunteers-list">
+                            <table class="volunteers-table" style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">
+                                        <th style="padding: 10px; text-align: left; font-weight: bold;">Volunteer Name</th>
+                                        <th style="padding: 10px; text-align: left; font-weight: bold;">Email</th>
+                                        <th style="padding: 10px; text-align: left; font-weight: bold;">Phone</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for volunteer in registered_volunteers %}
+                                    <tr style="border-bottom: 1px solid #eee;">
+                                        <td style="padding: 10px;">{{ volunteer.name }}</td>
+                                        <td style="padding: 10px;">{{ volunteer.email }}</td>
+                                        <td style="padding: 10px;">{{ volunteer.phone }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No volunteers registered yet</p>
+                    {% endif %}
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -67,9 +97,15 @@
                     <div class="alert alert-success">
                         ✓ You are registered for this event
                     </div>
+                    {% if not is_event_ended %}
                     <form method="POST" action="{{ url_for('unregister_event', event_id=event.id) }}" style="display:inline;">
                         <button type="submit" class="btn btn-outline-danger">Unregister from Event</button>
                     </form>
+                    {% endif %}
+                {% elif is_event_ended %}
+                    <div class="alert alert-danger">
+                        ⚠️ This event has already concluded. Registration is closed.
+                    </div>
                 {% elif event.status == 'Full' %}
                     <div class="alert alert-warning">
                         This event is now full. No more registrations are being accepted.

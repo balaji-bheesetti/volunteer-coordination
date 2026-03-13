@@ -1,8 +1,38 @@
 document.addEventListener('DOMContentLoaded', function () {
+    initializeHamburgerMenu();
     initializeAlerts();
     initializeFormValidation();
     initializeEventListeners();
 });
+
+/**
+ * Initialize mobile hamburger menu toggle
+ */
+function initializeHamburgerMenu() {
+    const hamburgerMenu = document.getElementById('hamburgerMenu');
+    const navMenu = document.getElementById('navMenu');
+
+    if (hamburgerMenu && navMenu) {
+        hamburgerMenu.addEventListener('click', function () {
+            navMenu.classList.toggle('active');
+        });
+
+        // Close menu when a link is clicked
+        const navLinks = navMenu.querySelectorAll('a');
+        navLinks.forEach(link => {
+            link.addEventListener('click', function () {
+                navMenu.classList.remove('active');
+            });
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', function (event) {
+            if (!event.target.closest('.nav-container')) {
+                navMenu.classList.remove('active');
+            }
+        });
+    }
+}
 
 /**
  * Initialize auto-hiding alerts after 5 seconds

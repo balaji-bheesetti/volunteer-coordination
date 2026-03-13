@@ -9,9 +9,10 @@
         <p class="subtitle">Find and register for volunteer opportunities in your community</p>
     </div>
 
-    {% if events %}
+    {% if upcoming_events %}
+        <h2 class="mt-4">📅 Upcoming Events</h2>
         <div class="events-grid">
-            {% for event in events %}
+            {% for event in upcoming_events %}
                 <div class="event-card">
                     <div class="event-header">
                         <h3>{{ event.title }}</h3>
@@ -70,7 +71,64 @@
                 </div>
             {% endfor %}
         </div>
+    {% endif %}
+
+    {% if past_events %}
+        <h2 class="mt-5">📜 Past Events</h2>
+        <div class="events-grid">
+            {% for event in past_events %}
+                <div class="event-card" style="opacity: 0.85;">
+                    <div class="event-header">
+                        <h3>{{ event.title }}</h3>
+                        <span class="event-status" style="background-color: #999;">
+                            Completed
+                        </span>
+                    </div>
+
+                    <div class="event-body">
+                        <p class="event-description">{{ event.description[:100] }}...</p>
+                        
+                        <div class="event-info">
+                            <div class="info-item">
+                                <strong>📅 Date:</strong> {{ event.date.strftime('%B %d, %Y') }}
+                            </div>
+                            <div class="info-item">
+                                <strong>⏰ Time:</strong> {{ event.start_time.strftime('%I:%M %p') }} - {{ event.end_time.strftime('%I:%M %p') }}
+                            </div>
+                            <div class="info-item">
+                                <strong>📍 Location:</strong> {{ event.location_text }}
+                            </div>
+                            <div class="info-item">
+                                <strong>👥 Attended:</strong> {{ event.registered_volunteers }} volunteers
+                            </div>
+                        </div>
+
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 100%; background-color: #999;"></div>
+                        </div>
+                    </div>
+
+                    <div class="event-footer">
+                        <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn btn-outline btn-sm">
+                            View Details
+                        </a>
+                        {% if current_user and current_user.role == 'volunteer' %}
+                            {% if event.id in volunteer_registrations %}
+                                <span class="badge badge-success">✓ Attended</span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
     {% else %}
+        <h2 class="mt-5">📜 Past Events</h2>
+        <div class="empty-state">
+            <p>No past events available</p>
+        </div>
+    {% endif %}
+
+    {% if not upcoming_events and not past_events %}
         <div class="empty-state">
             <p>No events available at the moment.</p>
             {% if current_user and current_user.role == 'organization' %}

@@ -24,15 +24,19 @@
             <p>Events Registered</p>
         </div>
         <div class="stat-card">
-            <h3>{{ events|length }}</h3>
-            <p>Available Events</p>
+            <h3>{{ upcoming_events|length }}</h3>
+            <p>Upcoming Events</p>
+        </div>
+        <div class="stat-card">
+            <h3>{{ past_events|length }}</h3>
+            <p>Past Events</p>
         </div>
     </div>
 
-    {% if events %}
-        <h2 class="mt-5">Upcoming Volunteer Events</h2>
+    {% if upcoming_events %}
+        <h2 class="mt-5">📅 Upcoming Volunteer Events</h2>
         <div class="events-grid">
-            {% for event in events %}
+            {% for event in upcoming_events %}
                 <div class="event-card">
                     <div class="event-header">
                         <h3>{{ event.title }}</h3>
@@ -91,6 +95,55 @@
         <div class="empty-state mt-5">
             <h3>No upcoming events</h3>
             <p>Check back later for new volunteer opportunities</p>
+        </div>
+    {% endif %}
+
+    {% if past_events %}
+        <h2 class="mt-5">📜 Past Events You Were Interested In</h2>
+        <div class="events-grid">
+            {% for event in past_events %}
+                <div class="event-card" style="opacity: 0.8;">
+                    <div class="event-header">
+                        <h3>{{ event.title }}</h3>
+                        <span class="event-status" style="background-color: #999;">
+                            Completed
+                        </span>
+                    </div>
+
+                    <div class="event-body">
+                        <p class="event-description">{{ event.description[:100] }}...</p>
+                        
+                        <div class="event-info">
+                            <div class="info-item">
+                                <strong>📅 Date:</strong> {{ event.date.strftime('%b %d, %Y') }}
+                            </div>
+                            <div class="info-item">
+                                <strong>⏰ Time:</strong> {{ event.start_time.strftime('%I:%M %p') }}
+                            </div>
+                            <div class="info-item">
+                                <strong>📍 Location:</strong> {{ event.location_text }}
+                            </div>
+                            <div class="info-item">
+                                <strong>👥 Total Volunteers:</strong> {{ event.registered_volunteers }} registered
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="event-footer">
+                        <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn btn-outline btn-sm">
+                            View Details
+                        </a>
+                        {% if event.id in registered_event_ids %}
+                            <span class="btn btn-success btn-sm" style="cursor: default; pointer-events: none;">✓ You Attended</span>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <h2 class="mt-5">📜 Past Events</h2>
+        <div class="empty-state">
+            <p>No past events yet</p>
         </div>
     {% endif %}
 </div>
