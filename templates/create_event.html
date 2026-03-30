@@ -290,9 +290,10 @@ function convertTo12Hour(time24h) {
 
 // Sync select-based time inputs with hidden fields
 function updateHidden(pref) {
-    const hour = document.getElementById(pref + '_hour').value;
-    const minute = document.getElementById(pref + '_minute').value;
-    const ampm = document.getElementById(pref + '_ampm').value;
+    const base = pref.replace('_time', '');
+    const hour = document.getElementById(base + '_hour').value;
+    const minute = document.getElementById(base + '_minute').value;
+    const ampm = document.getElementById(base + '_ampm').value;
     document.getElementById(pref).value = `${hour}:${minute} ${ampm}`;
 }
 
@@ -352,6 +353,10 @@ window.addEventListener('load', function() {
 
     setSelectsFromHidden('start_time');
     setSelectsFromHidden('end_time');
+
+    // Ensure hidden fields are synced on page load before browser validation
+    updateHidden('start_time');
+    updateHidden('end_time');
 });
 </script>
 

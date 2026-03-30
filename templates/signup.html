@@ -19,7 +19,7 @@
         <!-- Type Selection -->
         <div class="type-selector mb-4">
             <a href="{{ url_for('signup', type='volunteer') }}" 
-               class="signup-tab-btn {% if user_type == 'volunteer' %}active{% endif %}">
+               class="type-btn {% if user_type == 'volunteer' %}active{% endif %}">
                 Volunteer
             </a>
             <a href="{{ url_for('signup', type='organization') }}"
